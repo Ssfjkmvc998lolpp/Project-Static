@@ -19,7 +19,7 @@ local jumpPowerValue = 50
 local noclipEnabled = false
 local infiniteJumpEnabled = false
 local espEnabled = true
-local espDistance = 1200 -- ตัวแปรระยะทาง ESP
+local espDistance = 1200 
 
 -- Visual Variables
 local fullbrightEnabled = false
@@ -53,7 +53,6 @@ local Window = WindUI:CreateWindow({
     },
 })
 
--- [[ เพิ่มระบบ Config Manager ]]
 local ConfigManager = Window.ConfigManager
 local myConfig = ConfigManager:CreateConfig("static_hub_config") 
 
@@ -103,7 +102,7 @@ end)
 ImageButton.InputEnded:Connect(function(input) dragStart = nil end)
 ImageButton.MouseButton1Click:Connect(function() Window:Toggle() end)
 
--- === 2. Enhanced ESP System (With Distance Check) ===
+-- === 2. Enhanced ESP System ===
 local function applyESP(p)
     if p == LocalPlayer then return end
     local function setupESP(char)
@@ -164,13 +163,11 @@ local function applyESP(p)
                 return
             end
 
-            -- ตรวจสอบระยะทาง
             local distance = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")) and (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude or 0
             
             if espEnabled and distance <= espDistance then
                 billboard.Enabled = true
                 hl.Enabled = true
-                hl.OutlineColor = Color3.fromRGB(0, 0, 0)
                 
                 local hasItems = #p.Backpack:GetChildren() > 0 or char:FindFirstChildOfClass("Tool")
                 if hasItems then
@@ -202,18 +199,13 @@ end
 local MainTab = Window:Tab({ Title = "Main", Icon = "house" })
 MainTab:Section({ Title = "ESP Settings" })
 MainTab:Toggle({ Title = "Enable ESP", Flag = "esp_enabled", Value = true, Callback = function(state) espEnabled = state end })
-
--- [[ เพิ่ม Slider ระยะ ESP ตามสั่ง ]]
 MainTab:Slider({ 
     Title = "ESP Distance", 
     Flag = "esp_distance_slider",
     Step = 10, 
     Value = { Min = 1, Max = 1200, Default = 1200 }, 
-    Callback = function(v) 
-        espDistance = v 
-    end 
+    Callback = function(v) espDistance = v end 
 })
-
 MainTab:Button({ Title = "Refresh ESP (Fix Bug)", Callback = function() refreshAllESP() WindUI:Notify({Title="ESP", Content="Refreshed!"}) end })
 
 local CombatTab = Window:Tab({ Title = "Combat", Icon = "swords" })
@@ -235,17 +227,6 @@ VisualTab:Toggle({ Title = "X-Ray", Flag = "xray_toggle", Value = false, Callbac
     end
 end})
 
-VisualTab:Section({ Title = "Atmosphere" })
-VisualTab:Colorpicker({
-    Title = "Ambient Color",
-    Flag = "ambient_color",
-    Default = Lighting.Ambient,
-    Callback = function(color)
-        Lighting.Ambient = color
-        Lighting.OutdoorAmbient = color
-    end
-})
-
 local MoveTab = Window:Tab({ Title = "Movement", Icon = "zap" })
 MoveTab:Toggle({ Title = "Enable WalkSpeed", Flag = "ws_enabled", Value = false, Callback = function(state) walkSpeedEnabled = state end })
 MoveTab:Slider({ Title = "Speed Value", Flag = "ws_slider", Step = 1, Value = { Min = 16, Max = 250, Default = 16 }, Callback = function(v) walkSpeedValue = v end })
@@ -254,15 +235,38 @@ MoveTab:Slider({ Title = "Jump Value", Flag = "jp_slider", Step = 1, Value = { M
 MoveTab:Toggle({ Title = "Noclip", Flag = "noclip_toggle", Value = false, Callback = function(state) noclipEnabled = state end })
 MoveTab:Toggle({ Title = "Infinite Jump", Flag = "infjump_toggle", Value = false, Callback = function(state) infiniteJumpEnabled = state end })
 
+-- === Player Tab (Fixed Refresh) ===
 local PlayerTab = Window:Tab({ Title = "Players", Icon = "users" })
 local selectedPlayerName = ""
+
 local function getPlayerList()
     local names = {}
-    for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then table.insert(names, p.DisplayName) end end
+    for _, p in pairs(Players:GetPlayers()) do 
+        if p ~= LocalPlayer then 
+            table.insert(names, p.DisplayName) 
+        end 
+    end
+    if #names == 0 then table.insert(names, "No players found") end
     return names
 end
-local PlayerDropdown = PlayerTab:Dropdown({ Title = "Select Target", Values = getPlayerList(), Callback = function(selected) selectedPlayerName = selected end })
-PlayerTab:Button({ Title = "Refresh List", Callback = function() PlayerDropdown:SetValues(getPlayerList()) end })
+
+local PlayerDropdown = PlayerTab:Dropdown({ 
+    Title = "Select Target", 
+    Values = getPlayerList(), 
+    Callback = function(selected) 
+        selectedPlayerName = selected 
+    end 
+})
+
+PlayerTab:Button({ 
+    Title = "Refresh List", 
+    Callback = function() 
+        local newList = getPlayerList()
+        PlayerDropdown:SetValues(newList) -- อัปเดต Dropdown ตรงๆ
+        WindUI:Notify({Title = "Players", Content = "Player list updated!"})
+    end 
+})
+
 PlayerTab:Toggle({ 
     Title = "View Player", 
     Value = false, 
@@ -272,28 +276,19 @@ PlayerTab:Toggle({
         Camera.CameraSubject = (state and target and target.Character) and target.Character.Humanoid or LocalPlayer.Character.Humanoid
     end
 })
+
 PlayerTab:Button({ Title = "Teleport", Callback = function()
-    for _, p in pairs(Players:GetPlayers()) do if p.DisplayName == selectedPlayerName and p.Character then LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) end end
+    for _, p in pairs(Players:GetPlayers()) do 
+        if p.DisplayName == selectedPlayerName and p.Character then 
+            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) 
+        end 
+    end
 end})
 
 local ThemeTab = Window:Tab({ Title = "Settings", Icon = "settings" })
 ThemeTab:Section({ Title = "Configurations" })
-
--- [[ ปุ่ม Save/Load Config ]]
-ThemeTab:Button({
-    Title = "Save Config",
-    Callback = function()
-        myConfig:Save()
-        WindUI:Notify({Title = "Config", Content = "Saved Successfully!"})
-    end
-})
-ThemeTab:Button({
-    Title = "Load Config",
-    Callback = function()
-        myConfig:Load()
-        WindUI:Notify({Title = "Config", Content = "Loaded Successfully!"})
-    end
-})
+ThemeTab:Button({ Title = "Save Config", Callback = function() myConfig:Save(); WindUI:Notify({Title = "Config", Content = "Saved!"}) end })
+ThemeTab:Button({ Title = "Load Config", Callback = function() myConfig:Load(); WindUI:Notify({Title = "Config", Content = "Loaded!"}) end })
 
 ThemeTab:Section({ Title = "UI Customization" })
 ThemeTab:Dropdown({
@@ -311,7 +306,7 @@ ThemeTab:Toggle({ Title = "Acrylic", Value = true, Callback = function() WindUI:
 ThemeTab:Toggle({ Title = "Transparent", Value = true, Callback = function(state) Window:ToggleTransparency(state) end })
 ThemeTab:Keybind({ Title = "Toggle UI Key", Value = Enum.KeyCode.RightShift, Callback = function(v) Window:SetToggleKey(v) end })
 
--- === 4. Core Logic ===
+-- === 4. Core Logic (Fixed Jump & Noclip) ===
 RunService.Stepped:Connect(function()
     if fullbrightEnabled then
         Lighting.Brightness = 2; Lighting.ClockTime = 14; Lighting.GlobalShadows = false
@@ -336,9 +331,27 @@ RunService.Stepped:Connect(function()
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         local myHum = LocalPlayer.Character.Humanoid
         if walkSpeedEnabled then myHum.WalkSpeed = walkSpeedValue end
-        if jumpPowerEnabled then myHum.UseJumpPower = true; myHum.JumpPower = jumpPowerValue end
+        
+        -- แก้บั๊กโดดสูงค้าง
+        if jumpPowerEnabled then 
+            myHum.UseJumpPower = true
+            myHum.JumpPower = jumpPowerValue 
+        else
+            myHum.UseJumpPower = false
+            myHum.JumpPower = 50 
+        end
+        
+        -- แก้บั๊ก Noclip ค้าง
         if noclipEnabled then
-            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
+                if v:IsA("BasePart") then v.CanCollide = false end 
+            end
+        else
+            for _, v in pairs(LocalPlayer.Character:GetDescendants()) do 
+                if v:IsA("BasePart") and (v.Name == "HumanoidRootPart" or v.Name == "Head" or v.Name:match("Torso")) then 
+                    v.CanCollide = true 
+                end 
+            end
         end
     end
 end)
@@ -352,6 +365,5 @@ end)
 for _, p in pairs(Players:GetPlayers()) do applyESP(p) end
 Players.PlayerAdded:Connect(applyESP)
 
--- Auto Load เมื่อรันสคริปต์
 myConfig:Load()
-WindUI:Notify({ Title = "Static Hub", Content = "System Ready & Config Loaded!" })
+WindUI:Notify({ Title = "Static Hub", Content = "System Ready & List Fixed!" })
